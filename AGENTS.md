@@ -1,5 +1,14 @@
 # Instructions for coding agents
 
+## Mandatory English-only policy
+
+- All coding agents must write responses, progress updates, explanations,
+  questions, and final task reports in English.
+- All source code, code comments, documentation, commit messages, Pull Request
+  titles and descriptions, and review summaries must be written in English.
+- This policy applies to all future tasks unless the project owner explicitly
+  instructs otherwise.
+
 ## Read before working
 
 Read `README.md`, `docs/PRODUCT.md`, `docs/ROADMAP.md`,
