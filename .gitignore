@@ -1,0 +1,17 @@
+# Local secrets; examples may be versioned only with non-secret values.
+.env
+.env.*
+!.env.example
+
+# Logs and editor temporary files.
+*.log
+*.swp
+*.swo
+*~
+.vs/
+.idea/
+
+# Operating-system metadata.
+.DS_Store
+Thumbs.db
+Desktop.ini
