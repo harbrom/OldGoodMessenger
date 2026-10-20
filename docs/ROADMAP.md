@@ -19,8 +19,9 @@ The foundation contains no application implementation or deployed service.
 - Evaluate Windows toolchain and GUI options against those criteria.
 - Propose the server language, storage, transport, and protocol with explicit
   tradeoffs; obtain approval before implementation.
-- Resolve account/session behavior, Unicode limits, presence aggregation,
-  blocking, minimal anti-spam, and status measurement semantics.
+- Resolve Unicode character counting, session synchronization, account-wide
+  presence coordination, blocking, anti-spam thresholds, and status measurement details
+  within the canonical PS-001 through PS-006 requirements in `PRODUCT.md`.
 - Verify Kolobok asset licensing and redistribution rights before inclusion.
 
 Use `docs/research/` for evidence and `docs/decisions/` for explicit decisions.
@@ -28,21 +29,28 @@ Research must not silently select the stack.
 
 ## Public Beta 0.1 scope
 
-- Server with accounts, persistent device sessions, direct messaging, offline
-  delivery, paginated persistent history, contacts, presence, blocking, and
-  minimal anti-spam.
+- Server with accounts, persistent concurrent device sessions, independent message
+  synchronization, direct and self-messaging, offline delivery, paginated immutable
+  history, contacts, account-wide presence, blocking, server-side rate limiting,
+  new-recipient limits, email verification, and basic administrative suspension.
 - Windows XP SP3–11 client with the approved classic interface and desktop
   integration.
-- Lightweight Java ME client initially tested on Sony Ericsson K750i.
+- Lightweight Java ME client initially validated on Sony Ericsson K750i.
 - Website with account management, downloads, Support Ukraine, and measured
   server status that protects Invisible users.
 - Compatibility and behavior validation on relevant target environments before
   claiming support or publishing downloads.
+- Core functionality must operate reliably; minor noncritical defects are
+  acceptable under PS-001.
 
 Implementation order and release readiness checks require later scoped tasks.
 Foundation Task 001 does not authorize implementation or deployment.
 
-## Possible later work
+## Planned directions beyond Beta 0.1
 
-Java ME Lite builds may be explored if device evidence justifies them. No other
-post-beta features are approved. The exclusions in `PRODUCT.md` remain in force.
+Android and Linux clients, developer documentation, independent third-party client
+implementations using the open protocol, and future self-hosting are planned
+directions, not Beta 0.1 deliverables. No dates or implementation stacks are selected.
+
+Java ME Lite builds may be explored if device evidence justifies them; lightweight
+packaging remains optional. The exclusions in `PRODUCT.md` remain in force.

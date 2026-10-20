@@ -6,26 +6,33 @@ The stack, hosting, email delivery provider, and server integration are undecide
 
 ## Account management
 
+Preserve the account and identity requirements in PS-005 of
+[PRODUCT.md](PRODUCT.md).
+
 - Registration with a random, unique numeric OGM ID, initially six digits and
   supporting future expansion to nine.
 - Email-link activation and password recovery.
-- Email changes and account deletion.
+- Email changes require the current password and verification of the new address,
+  with notification to the old address.
+- Provide account deletion. Deleted accounts appear as "Deleted user" in retained
+  correspondence, subject to applicable data-protection requirements.
 - Initially accept Gmail and Apple/iCloud email providers; the exact domain
   allowlist and validation rules remain undecided.
 - Require passwords of at least 15 characters without mandatory character classes.
 - Password reset invalidates all authenticated device sessions.
 - Nicknames are set and changed in clients.
 
-Token mechanisms, account-management flows, and deletion effects on retained
-history require explicit decisions before implementation.
+Token mechanisms, account-management flow details, and deletion/data handling
+mechanisms require explicit decisions consistent with PS-005 before implementation.
+Do not provide a public user directory (PS-003).
 
 ## Downloads and project information
 
 - Provide downloads for the approved Windows and Java ME clients when actual
   release artifacts exist.
 - Describe the mission and the intended legacy-device experience.
-- Explain that OGM is an experimental hobby project with no guarantee of secure
-  or reliable communication.
+- Explain that OGM is an experimental hobby project with no guarantee of message
+  confidentiality, availability, or delivery.
 - Do not advertise untested compatibility or publish invented download links.
 
 ## Support Ukraine
@@ -36,7 +43,7 @@ verified before publication; none is selected by this foundation.
 
 ## Live server status
 
-- Show real uptime and the number of online accounts from actual measurements.
+- Show real uptime and the number of visibly online accounts from actual measurements.
 - Do not expose Invisible users through presence statistics. Invisible accounts
   must not be counted as visibly online or revealed by another public metric.
 - Multiple sessions must not inflate a count of accounts into a count of devices.

@@ -2,6 +2,8 @@
 
 This document records responsibilities implied by approved product requirements.
 It is not an approved implementation design. There is no application code yet.
+The canonical PS-001 through PS-006 mapping in [PRODUCT.md](PRODUCT.md) governs
+these constraints; implementation details must preserve those decisions.
 
 ## Repository responsibilities
 
@@ -20,17 +22,31 @@ Git directory-retention files.
 ## Approved constraints
 
 - Clients communicate using OGM's own open protocol, independent of other
-  messaging platforms. Its format and transport are undecided.
+  messaging platforms. Independent third-party clients and future self-hosting
+  remain planned directions. Protocol format and transport are undecided.
 - The server retains history without automatic age-based expiration and supports
-  offline delivery and pagination.
+  offline delivery and pagination. Sent messages are immutable, limited to 500
+  Unicode characters, and have no individual deletion or delete-for-everyone.
+  Self-messaging uses standard delivery and history semantics, without a special
+  Saved Messages feature, bot platform, or automation API.
 - Accounts support persistent concurrent device sessions; password reset
-  invalidates all sessions.
+  invalidates all sessions. Each session synchronizes messages independently;
+  presence is account-wide, with Online, Away, DND, Invisible, and Offline states.
 - Invisible presence must appear Offline to others and must not be exposed by
   public statistics. There is no Last Seen feature.
+- Contacts are unilateral and messaging requires no mutual approval. Provide
+  personal blocking, server-side rate limiting, new-recipient limits, email
+  verification, and basic administrative suspension. There is no public user
+  directory or contacts-only messaging mode.
+- Email change requires the current password, new-address verification, and
+  notification to the old address. Deleted accounts appear as "Deleted user" in
+  retained correspondence, subject to applicable data-protection requirements.
 - Emoticon images are client-local; only their text sequences are transmitted.
 - Resource use and legacy compatibility constrain every technology evaluation.
+- An optional short textual user status remains part of the client requirements.
 - E2EE is excluded. Transport protection, credential storage, and session
   mechanisms still need explicit design decisions.
+- OGM offers no guarantee of message confidentiality, availability, or delivery.
 
 ## Technology status
 
@@ -56,9 +72,12 @@ No framework, dependency, schema, wire format, or hosting provider is selected.
 - How are random IDs allocated without collisions and expanded to nine digits?
 - Which exact Gmail and Apple/iCloud domains are accepted, and how are addresses
   normalized?
-- How do concurrent device sessions determine presence and message delivery state?
-- What do blocking and minimal anti-spam controls do in concrete scenarios?
-- What does account deletion remove or retain, particularly shared history?
+- How do concurrent sessions coordinate account-wide presence and synchronize
+  messages independently, as required by PS-002?
+- How are blocking, rate limiting, new-recipient limits, and administrative
+  suspension implemented within PS-003?
+- How are deletion and retained correspondence handled consistently with PS-005's
+  "Deleted user" label and applicable data-protection requirements?
 - How are uptime and online account counts measured without exposing Invisible
   users, including through aggregation or changes in counts?
 

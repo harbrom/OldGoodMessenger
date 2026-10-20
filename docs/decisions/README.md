@@ -1,8 +1,9 @@
 # Decision records
 
 Approved product requirements are recorded as PS-001 through PS-006 in
-[`../PRODUCT.md`](../PRODUCT.md). That numbering organizes the requirements
-provided in Foundation Task 001; no separate historical PS records were supplied.
+[`../PRODUCT.md`](../PRODUCT.md). Their canonical meanings were restored by the
+project owner's instructions in Foundation Task 002. Preserve those identifiers;
+do not regroup other product requirements under them.
 
 No technology or implementation architecture has been approved yet. Go, SQLite,
 TCP, and GUI frameworks are candidates only.

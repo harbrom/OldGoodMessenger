@@ -20,6 +20,10 @@ unrelated user changes.
 ## Respect the approved scope
 
 - Treat PS-001 through PS-006 in `docs/PRODUCT.md` as approved product requirements.
+- Preserve their canonical mapping: PS-001 release strategy; PS-002 multi-session
+  and presence; PS-003 contacts and minimal anti-spam; PS-004 message history and
+  limits; PS-005 account and identity management; PS-006 self-messaging. Do not
+  regroup or renumber them; keep other requirements outside these identifiers.
 - Preserve the mission: make old devices useful again through small, simple,
   resource-efficient software. Legacy compatibility is a primary constraint.
 - Do not add features, dependencies, scaffolding, or abstractions without a need
