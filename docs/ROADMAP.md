@@ -27,6 +27,14 @@ The foundation contains no application implementation or deployed service.
 Use `docs/research/` for evidence and `docs/decisions/` for explicit decisions.
 Research must not silently select the stack.
 
+## Implementation Task 004: local First Contact experiment
+
+The owner authorized a Go TCP relay, Go console harness, and CLDC 1.1/MIDP 2.0
+MIDlet for a local PoC only. See [build instructions and measured verification](first-contact.md).
+Production account, history, presence, and multi-session requirements remain
+unchanged. Physical K750i testing and any network-accessible endpoint require a
+separate task; local emulator results do not establish handset compatibility.
+
 ## Public Beta 0.1 scope
 
 - Server with accounts, persistent concurrent device sessions, independent message

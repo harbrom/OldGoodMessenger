@@ -18,22 +18,28 @@ security. End-to-end encryption is outside the approved scope.
 
 ## Current state
 
-This repository contains the project foundation and approved product requirements.
-There is no application code, running service, installer, or download yet.
-Languages, storage, transport, GUI frameworks, and hosting remain undecided.
+This repository contains approved product requirements and a local transport
+experiment: a Go TCP relay, a Go console client, and a CLDC 1.1/MIDP 2.0 MIDlet.
+See [First Contact setup, protocol, and verification](docs/first-contact.md).
+These choices are approved for Implementation Task 004's PoC only. Production
+architecture, storage, GUI frameworks, and hosting remain undecided. There is no
+deployed service, production installer, or published download.
 
 ## Repository layout
 
 ```text
-server/             Reserved for the server
+server/             Experimental loopback TCP relay entry point
+internal/           PoC framing, relay, test-client support, and Go tests
+clients/console/    Go console transport test client (modern Windows)
 clients/windows/    Reserved for the Windows client
-clients/java-me/    Reserved for the Java ME client
+clients/java-me/     Experimental MIDlet and compatibility tests
+scripts/            Portable tool setup, builds, and local verification
 website/            Reserved for account management and public information
 docs/               Product, roadmap, architecture, website, decisions, research
 ```
 
-Reserved implementation directories contain only `.gitkeep` files so Git retains
-the directory structure.
+Unimplemented areas retain `.gitkeep` files. Tool downloads, build artifacts,
+and test caches are local and ignored by Git.
 
 ## Project documentation
 
