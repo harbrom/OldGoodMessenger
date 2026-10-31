@@ -15,3 +15,8 @@
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Portable PoC toolchains, caches, and generated artifacts.
+/.tools/
+/.build/
+/.cache/

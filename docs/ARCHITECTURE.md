@@ -1,7 +1,10 @@
 # Architecture boundaries and open decisions
 
 This document records responsibilities implied by approved product requirements.
-It is not an approved implementation design. There is no application code yet.
+It is not an approved production implementation design. Implementation Task 004
+authorizes the [First Contact local PoC](first-contact.md): Go 1.27.x, framed TCP,
+a Go console harness, and CLDC 1.1/MIDP 2.0. That experiment does not select the
+production architecture or establish legacy-device compatibility.
 The canonical PS-001 through PS-006 mapping in [PRODUCT.md](PRODUCT.md) governs
 these constraints; implementation details must preserve those decisions.
 
@@ -16,8 +19,8 @@ these constraints; implementation details must preserve those decisions.
 | `docs/` | Requirements, research, roadmap, and decision records |
 
 These directories do not prescribe service boundaries, deployment units, APIs,
-shared libraries, or a build system. Reserved implementation paths contain only
-Git directory-retention files.
+shared libraries, or a production build system. The PoC also uses `internal/`,
+`clients/console/`, and `scripts/`; unimplemented areas retain directory markers.
 
 ## Approved constraints
 
@@ -48,7 +51,7 @@ Git directory-retention files.
   mechanisms still need explicit design decisions.
 - OGM offers no guarantee of message confidentiality, availability, or delivery.
 
-## Technology status
+## Production technology status
 
 | Area | Status | Candidates or next evaluation |
 | --- | --- | --- |
@@ -62,7 +65,9 @@ Git directory-retention files.
 | Password storage, transport protection, session mechanisms | Undecided | Evaluate legacy interoperability and explicit tradeoffs |
 | Packaging, build tooling, CI, hosting, operations | Undecided | Define only when required by an authorized task |
 
-No framework, dependency, schema, wire format, or hosting provider is selected.
+No production framework, dependency, schema, wire format, or hosting provider is
+selected. The PoC's exact experimental framing and build tools are documented
+separately, with authorization provenance and limitations.
 
 ## Questions to resolve before dependent implementation
 
