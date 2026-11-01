@@ -1,6 +1,7 @@
 # Message delivery protocol
 
-**PROPOSED — NOT APPROVED.** Task 006 design, November 1, 2026; no implementation authorization or production decision.
+**PROPOSED — NOT APPROVED** as a delivery architecture. Task 006 design, November 1, 2026.
+Task 007 explicitly authorizes isolated v1 codecs and accepts Unicode scalar counting; it does not authorize production integration.
 
 ## Scope and evidence
 
@@ -62,26 +63,32 @@ All multibyte integers are big-endian; no padding, terminators, compression, or 
 Proposed body cap is **2041 bytes** (wire cap 2043), raised from PoC's 2005 only to accommodate delivery metadata.
 Reject lengths below 9 or above 2041 before allocating; then require the exact operation layout and numeric ranges.
 `u8/u32/u64` below mean 1/4/8-byte wire fields, subject to the ranges above. `text` occupies the remaining body bytes.
+Operation/error codes are hexadecimal. No operation accepts trailing bytes beyond its layout (text consumes its defined remainder).
+Stateless checks: IDs 100000..999999999; sequences, message IDs, writer IDs, and ITEM cursors 1..2^63-1;
+SYNC after/through, END next/through, and CHANGED tail 0..2^63-1. SYNC allows through=0 as a fresh-snapshot sentinel;
+otherwise after <= through. END requires next <= through, and next=0 only when through=0 (an empty terminal history).
+ERROR request_opcode must be SEND or SYNC; its reference is positive for SEND and nonnegative for SYNC; code must be 0x01..0x04.
+Request-relative END bounds, page membership/count/order, and ordering across frames require caller state, not the codec.
 
 | Direction / operation | Body fields, in exact order | Body bytes |
 | --- | --- | --- |
-| C→S SEND `10` | opcode:u8, client_seq:u64, recipient:u32, text | 14..2013 |
-| S→C ACK `90` | opcode:u8, client_seq:u64, message_id:u64 | 17 |
-| C→S SYNC `11` | opcode:u8, after:u64, through:u64, limit:u8 | 18 |
-| S→C ITEM `91` | opcode:u8, cursor:u64, message_id:u64, sender:u32, recipient:u32, writer_id:u64, client_seq:u64, text | 42..2041 |
-| S→C END `92` | opcode:u8, next:u64, through:u64 | 17 |
-| S→C CHANGED `93` | opcode:u8, current_account_tail:u64 | 9 |
-| S→C ERROR `ff` | opcode:u8, request_opcode:u8, reference:u64, code:u8 | 11 |
+| C→S SEND `0x10` | opcode:u8, client_seq:u64, recipient:u32, text | 14..2013 |
+| S→C ACK `0x90` | opcode:u8, client_seq:u64, message_id:u64 | 17 |
+| C→S SYNC `0x11` | opcode:u8, after:u64, through:u64, limit:u8 | 18 |
+| S→C ITEM `0x91` | opcode:u8, cursor:u64, message_id:u64, sender:u32, recipient:u32, writer_id:u64, client_seq:u64, text | 42..2041 |
+| S→C END `0x92` | opcode:u8, next:u64, through:u64 | 17 |
+| S→C CHANGED `0x93` | opcode:u8, current_account_tail:u64 | 9 |
+| S→C ERROR `0xFF` | opcode:u8, request_opcode:u8, reference:u64, code:u8 | 11 |
 
 ERROR references SEND's client sequence or SYNC's `after`, scoped to this connection/context.
-Codes: `01` REJECTED (invalid recipient/text or policy denial; no new acceptance), `02` CONFLICT (key already has different content),
-`03` CURSOR_INVALID (invalid range/unknown future position), `04` RETRYABLE (outcome may be uncertain; retry same SEND key).
+Codes: `0x01` REJECTED (invalid recipient/text or policy denial; no new acceptance), `0x02` CONFLICT (key already has different content),
+`0x03` CURSOR_INVALID (invalid range/unknown future position), `0x04` RETRYABLE (outcome may be uncertain; retry same SEND key).
 Do not expose blocking/suspension details. Unknown opcodes, bad sizes, invalid numeric fields, or protocol-state violations close the
 connection; ERROR is best effort only when correlation is safely available. An errored SYNC has no END and advances no checkpoint.
 ACK/CHANGED may interleave a SYNC response; ITEM records belong only to its single outstanding SYNC and arrive in cursor order.
 
-Text proposal: **1..500 Unicode scalar values and 1..2000 UTF-8 bytes**, matching the experimental codec, pending explicit approval
-of PS-004's counting detail. A supplementary scalar counts once; combining marks count separately, not as grapheme clusters.
+Accepted in the owner's Task 007 instruction: PS-004's 500-character limit counts **Unicode scalar values**, matching the experimental codec.
+Text contains **1..500 Unicode scalar values and 1..2000 UTF-8 bytes**. A supplementary scalar counts once; combining marks count separately.
 Reject invalid/overlong UTF-8, encoded surrogates, values above U+10FFFF, and unpaired Java UTF-16 surrogates; preserve valid bytes,
 including NUL/newline, without normalization. Java `String.length()` alone is insufficient. Use explicit standard UTF-8, never readUTF/writeUTF.
 
@@ -155,7 +162,7 @@ There are no timestamps or read/delivery receipts in this proposal. No throughpu
 
 ## Proposed sequence and blocking decisions
 
-1. Obtain approval for delivery semantics, layouts, and Unicode counting; retain this proposal until explicitly approved.
+1. Obtain approval for delivery integration/semantics; Task 007 separately authorizes codecs and accepts scalar counting only.
 2. Smallest implementation task: add an isolated revision-1 codec and shared Go/Java byte fixtures with boundary, split/coalesced-frame,
    malformed-input, and supplementary-scalar tests. Leave the validated PoC unchanged; no database, authentication, or network exposure.
 3. Then test transaction/retry/page state machines with injected local contexts and fault points; separately approve storage/driver and
@@ -163,9 +170,8 @@ There are no timestamps or read/delivery receipts in this proposal. No throughpu
 
 Blocking decisions for the dependent portions (not requests to change approved product scope):
 
-- Approve Unicode scalar counting versus grapheme counting for the existing 500-character requirement.
 - Approve a persistent storage dependency and concrete crash/power-loss durability contract/settings for ACK.
 - Define the future version/authentication boundary's trusted account and stable writer-namespace lifecycle before production integration.
 - Resolve legal/account-deletion effects on retained correspondence and deduplication state before implementing erasure; no automatic expiry is proposed.
 
-These choices and every wire/behavior recommendation above remain **PROPOSED — NOT APPROVED**.
+Delivery architecture remains **PROPOSED — NOT APPROVED**; the Task 007 codec authorization and accepted scalar counting are the exceptions.
