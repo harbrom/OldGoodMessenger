@@ -1,9 +1,10 @@
 # Delivery v1 writer state and outbox
 
 Task 011A authorizes isolated CLDC 1.1/MIDP 2.0 writer state; Task 011B adds a
-SEND-only TCP component and local emulator integration tests. Neither changes
-First Contact, its MIDlet package, the wire codec, or server behavior. There is
-no UI, production authentication, writer issuance, history or synchronization here.
+SEND-only TCP component; Task 011C adds read-only, volatile TCP history replay.
+These experiments are **not production-approved**. First Contact, its MIDlet
+package, wire formats and server behavior remain unchanged. There is no UI,
+production authentication, writer issuance or durable client history synchronization.
 Run persistence on a worker thread in any future integration, never the UI thread.
 
 ## Ownership and provisioning
@@ -170,10 +171,102 @@ resource cleanup and cancellation during read/open without sleeps. The restart
 phases also reopen SQLite; each phase verifies committed rows/IDs and joins
 handlers before closing the store.
 
-These are emulator/desktop results, not new K750i hardware evidence. Production
-authentication, encryption, history SYNC/ITEM/END/checkpoints, CHANGED handling,
-GUI, public/GPRS integration, hard deadlines and physical power-loss guarantees
-remain outside this experiment.
+These are emulator/desktop results, not new K750i hardware evidence. The sender
+does not retrieve history; the separate reader below is volatile only. Production
+authentication, encryption, persistent history/checkpoints, CHANGED handling, GUI,
+public/GPRS integration, hard deadlines and physical power-loss guarantees remain
+outside this experiment.
+
+## Volatile history reader (Task 011C)
+
+`new HistoryReader(trustedAccount)` defaults to **one ITEM per page**; the second
+constructor argument selects 1..8. Account context comes from the trusted caller,
+not a network handshake. Run `connect`, `replay` and its consumer on a worker,
+separately from Sender's connection and durable outbox:
+
+```java
+HistoryReader reader = new HistoryReader(100001, 2); // Disposable trusted fixture.
+try {
+    reader.connect("127.0.0.1:<port>");
+    reader.replay(new HistoryReader.Consumer() {
+        public void page(HistoryReader.Page page) throws java.io.IOException {
+            for (int i = 0; i < page.size(); i++) {
+                HistoryReader.Item item = page.item(i);
+                // Consume this validated immutable value; no durable claim here.
+            }
+        }
+    });
+} finally { reader.close(); }
+```
+
+`replay(consumer)` explicitly starts from zero; `replay(after, consumer)` starts
+from a chosen nonnegative cursor. It returns the terminal H on success. Each call
+captures fresh H from its first END, then holds that H across every continuation
+until `next=through`. Exactly one SYNC is outstanding; overlapping/reentrant
+operations are refused. There is no background polling or automatic retry.
+
+ITEM cursor/message IDs must strictly increase within and across this replay;
+every record must include the trusted account. Full nonterminal pages require
+`next=last_item_cursor`; terminal pages, including full/empty pages and legitimate
+cursor gaps, obey `next=H`. Fresh bounds are checked at END, continuation H cannot
+change, and no more than the requested ITEM count is accepted. ACK and CHANGED
+are unsupported interleaves and invalidate the connection; they never advance
+progress. A valid END is necessary before any page is passed to the consumer.
+
+`Page` contains immutable ITEM values and `after`, `next`, `through` metadata.
+Each replay initializes `position()` to the chosen start and `snapshot()` to zero;
+subsequent advancement reflects only pages whose consumer returned normally.
+`complete()` becomes true only after successful terminal consumption. Inside a
+callback these getters still describe previously consumed pages. Consumer
+IOException/runtime failure prevents that page's advancement and closes the
+connection. Observed cancellation aborts replay; it cannot undo consumption that
+already completed. Callback side effects cannot be rolled back: a replay may
+repeat them, so the caller must handle duplicates. `close()` clears completion
+but retains the last volatile position/H for inspection.
+
+Correlated SYNC ERROR throws `HistoryReader.SyncException` with `code` and `after`.
+Protocol errors, malformed/truncated frames and I/O errors also fail explicitly.
+Discarding the connection removes partial or unread frames; reconnect and invoke
+a new replay from zero or a deliberately chosen position. Previous successful
+pages remain volatile observations, never a persisted checkpoint. Another thread
+may call `close()` for cancellation; join the worker before reconnecting. Socket
+ownership is isolated to leave Sender unchanged; the platform timeout/open
+cancellation limitations described above still apply.
+
+The reader retains at most one page array of 1..8 immutable ITEMs plus one
+transient codec frame/decoding buffers. Text is bounded by the existing 500-scalar /
+2000-byte rules (at most 1000 UTF-16 units per ITEM). Eight maximum-size ITEMs and
+END occupy at most 16363 wire bytes; this is not an exact heap measurement.
+There is no whole-history cache, queue or RMS checkpoint. Consumers must release
+pages rather than accumulate them if they want the same bounded memory behavior.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-java-me-history.ps1
+```
+
+The script compiles against CLDC 1.1/MIDP 2.0 only, preverifies class version 45.3,
+runs focused tests, then opts into `TestJavaMEHistory`. Normal Go checks skip this
+emulator test without its explicit fixture JAR. Twenty-two separate emulator JVM
+cases use real `127.0.0.1:0` TCP and temporary SQLite through unchanged Handle and
+history services. Committed fixtures come from acceptance; sparse cursor tests
+decorate the read view without altering SQLite rows/schema or allocation rules.
+
+Verified cases include empty/single/multi-page histories at limits 1/2/8,
+account isolation, both message directions and self-messages, exact Unicode and
+identity fields, full terminal pages and empty tail gaps. A deterministic commit
+after the first END is excluded from old H and included by fresh replay; Go checks
+the exact `(after,H,limit+1)` reads. Faults cut ITEM/END, reorder IDs, alter END/H,
+inject foreign/unexpected/malformed replies and mismatched errors. Reconnect
+retrieves the complete expected history. Another thread closes the real reader
+socket during consumption; stream-seam tests also cancel blocked read/open and
+check consumer failures without sleeps. Listeners/handlers stop before SQLite
+and temporary files are closed/removed. Generated test JARs stay in ignored `.build/`.
+
+This is **read-only, volatile retrieval, not durable synchronization or a delivery
+receipt**. A restart loses progress and requires replay. No persistent history,
+checkpoint, GUI, notification networking, production authentication or physical
+K750i/GPRS deployment is implemented. No handset compatibility or physical
+power-loss guarantee follows from emulator results.
 
 ## Verification and durability limits
 
