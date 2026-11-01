@@ -43,15 +43,18 @@ type Frame struct {
 	Text                  string
 }
 
-func validID(id uint32) bool { return id >= 100000 && id <= 999999999 }
-func validText(s string) bool {
+// ValidID checks the numeric OGM ID range, not account existence or ownership.
+func ValidID(id uint32) bool { return id >= 100000 && id <= 999999999 }
+
+// ValidText checks strict UTF-8, byte length, and the Unicode scalar limit.
+func ValidText(s string) bool {
 	return len(s) > 0 && len(s) <= MaxTextBytes && utf8.ValidString(s) && utf8.RuneCountInString(s) <= MaxCharacters
 }
 
 func (f Frame) bodySize() (int, error) {
 	switch f.Kind {
 	case Send:
-		if f.ClientSeq > 0 && validID(f.Recipient) && validText(f.Text) {
+		if f.ClientSeq > 0 && ValidID(f.Recipient) && ValidText(f.Text) {
 			return 13 + len(f.Text), nil
 		}
 	case Ack:
@@ -63,7 +66,7 @@ func (f Frame) bodySize() (int, error) {
 			return 18, nil
 		}
 	case Item:
-		if f.Cursor > 0 && f.MessageID > 0 && validID(f.Sender) && validID(f.Recipient) && f.WriterID > 0 && f.ClientSeq > 0 && validText(f.Text) {
+		if f.Cursor > 0 && f.MessageID > 0 && ValidID(f.Sender) && ValidID(f.Recipient) && f.WriterID > 0 && f.ClientSeq > 0 && ValidText(f.Text) {
 			return 41 + len(f.Text), nil
 		}
 	case End:
