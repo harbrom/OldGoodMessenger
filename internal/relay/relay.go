@@ -3,9 +3,11 @@ package relay
 import (
 	"bytes"
 	"context"
-	"errors"
+	"fmt"
 	"io"
 	"net"
+	"net/netip"
+	"strconv"
 	"sync"
 	"time"
 
@@ -13,10 +15,11 @@ import (
 )
 
 const (
-	MaxConnections   = 8
-	QueueSize        = 16
-	HandshakeTimeout = 5 * time.Second
-	IOTimeout        = 5 * time.Second
+	DefaultListenAddress = "127.0.0.1:19090"
+	MaxConnections       = 8
+	QueueSize            = 16
+	HandshakeTimeout     = 5 * time.Second
+	IOTimeout            = 5 * time.Second
 )
 
 type peer struct {
@@ -58,17 +61,47 @@ func New() *Server {
 	return &Server{peers: make(map[uint32]*peer), connections: make(map[*peer]bool)}
 }
 
-// Listen accepts numeric loopback addresses only, even when explicitly configured.
+// parseListenAddress requires an explicit interface address, never a wildcard.
+// Port zero requests an OS-assigned port for local tests.
+func parseListenAddress(address string) (string, error) {
+	host, port, err := net.SplitHostPort(address)
+	if err != nil {
+		return "", fmt.Errorf("invalid listen address %q: use IP:port (IPv6: [IP]:port): %w", address, err)
+	}
+	ip, err := netip.ParseAddr(host)
+	if err != nil {
+		return "", fmt.Errorf("invalid listen host %q: specify a numeric local IP address; hostnames and empty hosts are not allowed", host)
+	}
+	ip = ip.Unmap()
+	if ip.IsUnspecified() || ip.IsMulticast() {
+		return "", fmt.Errorf("invalid listen host %q: wildcard and multicast addresses are not allowed; select one local interface address", host)
+	}
+	if port == "" {
+		return "", fmt.Errorf("invalid listen port %q: use a decimal number from 0 to 65535", port)
+	}
+	for _, digit := range port {
+		if digit < '0' || digit > '9' {
+			return "", fmt.Errorf("invalid listen port %q: use a decimal number from 0 to 65535", port)
+		}
+	}
+	number, err := strconv.ParseUint(port, 10, 16)
+	if err != nil {
+		return "", fmt.Errorf("invalid listen port %q: use a decimal number from 0 to 65535", port)
+	}
+	return net.JoinHostPort(ip.String(), strconv.FormatUint(number, 10)), nil
+}
+
+// Listen binds exactly the configured address. The OS rejects unassigned IPs.
 func Listen(address string) (net.Listener, error) {
-	host, _, err := net.SplitHostPort(address)
+	validated, err := parseListenAddress(address)
 	if err != nil {
 		return nil, err
 	}
-	ip := net.ParseIP(host)
-	if ip == nil || !ip.IsLoopback() {
-		return nil, errors.New("only numeric loopback addresses are permitted")
+	listener, err := net.Listen("tcp", validated)
+	if err != nil {
+		return nil, fmt.Errorf("cannot listen on %s: %w", validated, err)
 	}
-	return net.Listen("tcp", address)
+	return listener, nil
 }
 
 func (s *Server) Active() int {

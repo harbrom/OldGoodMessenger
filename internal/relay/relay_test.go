@@ -214,12 +214,48 @@ func TestAdmissionCapAndShutdown(t *testing.T) {
 	}
 }
 
-func TestLoopbackOnly(t *testing.T) {
-	for _, addr := range []string{":19090", "0.0.0.0:19090", "[::]:19090", "192.0.2.1:19090", "localhost:19090"} {
-		if l, err := Listen(addr); err == nil {
+func TestInvalidListenConfiguration(t *testing.T) {
+	for _, check := range []struct{ address, reason string }{
+		{"", "invalid listen address"}, {"127.0.0.1", "invalid listen address"},
+		{":19090", "numeric local IP"}, {"localhost:19090", "numeric local IP"},
+		{"999.1.1.1:19090", "numeric local IP"},
+		{"0.0.0.0:19090", "wildcard"}, {"[::]:19090", "wildcard"},
+		{"[::ffff:0.0.0.0]:19090", "wildcard"}, {"224.0.0.1:19090", "multicast"},
+		{"127.0.0.1:", "invalid listen port"}, {"127.0.0.1:-1", "invalid listen port"},
+		{"127.0.0.1:+1", "invalid listen port"}, {"127.0.0.1:65536", "invalid listen port"},
+		{"127.0.0.1:http", "invalid listen port"}, {"127.0.0.1: 80", "invalid listen port"},
+	} {
+		if l, err := Listen(check.address); err == nil {
 			l.Close()
-			t.Fatalf("unsafe bind accepted: %s", addr)
+			t.Errorf("invalid bind accepted: %q", check.address)
+		} else if !strings.Contains(err.Error(), check.reason) {
+			t.Errorf("%q: expected %q, got %v", check.address, check.reason, err)
 		}
+	}
+}
+
+func TestExplicitListenAddress(t *testing.T) {
+	// These are parse checks only: never expose a listener on a LAN in the tests.
+	for _, address := range []string{DefaultListenAddress, "192.168.1.2:19090", "10.0.0.2:65535", "[::1]:0", "[fe80::1%test]:19090"} {
+		if got, err := parseListenAddress(address); err != nil || got != address {
+			t.Errorf("%q: got %q, %v", address, got, err)
+		}
+	}
+	l, err := Listen("127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	address := l.Addr().(*net.TCPAddr)
+	if !address.IP.Equal(net.ParseIP("127.0.0.1")) || address.Port == 0 {
+		t.Fatalf("unexpected bound address: %s", address)
+	}
+	// A second listener on the same address must report a bind failure clearly.
+	if duplicate, err := Listen(address.String()); err == nil {
+		duplicate.Close()
+		t.Fatal("occupied port accepted")
+	} else if !strings.Contains(err.Error(), "cannot listen on") {
+		t.Fatal(err)
 	}
 }
 

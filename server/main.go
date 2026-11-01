@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	address := flag.String("listen", "127.0.0.1:19090", "numeric loopback address only")
+	address := flag.String("listen", relay.DefaultListenAddress, "explicit numeric local IP:port; wildcard addresses are rejected")
 	flag.Parse()
 	listener, err := relay.Listen(*address)
 	if err != nil {
