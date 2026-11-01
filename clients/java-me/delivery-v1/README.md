@@ -2,9 +2,10 @@
 
 Task 011A authorizes isolated CLDC 1.1/MIDP 2.0 writer state; Task 011B adds a
 SEND-only TCP component; Task 011C adds read-only, volatile TCP history replay.
+Task 011D adds an isolated, bounded RMS history cache and durable checkpoint consumer.
 These experiments are **not production-approved**. First Contact, its MIDlet
 package, wire formats and server behavior remain unchanged. There is no UI,
-production authentication, writer issuance or durable client history synchronization.
+production authentication, writer issuance or production synchronization approval.
 Run persistence on a worker thread in any future integration, never the UI thread.
 
 ## Ownership and provisioning
@@ -173,7 +174,7 @@ handlers before closing the store.
 
 These are emulator/desktop results, not new K750i hardware evidence. The sender
 does not retrieve history; the separate reader below is volatile only. Production
-authentication, encryption, persistent history/checkpoints, CHANGED handling, GUI,
+authentication, encryption, CHANGED handling, GUI,
 public/GPRS integration, hard deadlines and physical power-loss guarantees remain
 outside this experiment.
 
@@ -262,11 +263,134 @@ socket during consumption; stream-seam tests also cancel blocked read/open and
 check consumer failures without sleeps. Listeners/handlers stop before SQLite
 and temporary files are closed/removed. Generated test JARs stay in ignored `.build/`.
 
-This is **read-only, volatile retrieval, not durable synchronization or a delivery
-receipt**. A restart loses progress and requires replay. No persistent history,
-checkpoint, GUI, notification networking, production authentication or physical
-K750i/GPRS deployment is implemented. No handset compatibility or physical
-power-loss guarantee follows from emulator results.
+HistoryReader alone remains **read-only, volatile retrieval, not durable
+synchronization or a delivery receipt**. A restart loses its in-memory position.
+The separate Task 011D consumer below adds a bounded persisted working set and
+checkpoint. No GUI, notification networking, production authentication or physical
+K750i/GPRS deployment is implemented. Emulator results establish neither handset
+compatibility nor physical power-loss survival.
+
+## Durable bounded history (Task 011D)
+
+`HistoryStore` retains the newest **eight** complete ITEMs by message ID, plus a
+durable account cursor. Use a distinct RMS name from the SEND outbox. The new
+`RmsHistoryStorage` adapter reuses the small `StateStorage` seam; it permits one
+serial history owner per VM, independently of `RmsStateStorage`'s writer owner.
+WriterState and its format are unchanged. Do all storage work on a worker thread.
+
+Trusted setup supplies the account and a positive 63-bit **local test server-history
+namespace**. For example, `777` is only a fixture label. It is not an endpoint,
+wire field, authentication token, server-issued identity or production restoration
+scheme. Open must match both persisted bindings exactly. The caller must associate
+the correct endpoint with that namespace; this protocol cannot authenticate or
+automatically discover a changed logical server history. Production history identity,
+backup restoration and replacement semantics remain unresolved. Do not restore old
+RMS state or silently reuse a checkpoint against a different server history.
+
+For initial provisioning, explicitly call `RmsHistoryStorage.create(name)` and
+`HistoryStore.provision(file, account, namespace)`. Both refuse existing state.
+For ordinary restart, open without creation and use the actual stored checkpoint:
+
+```java
+RmsHistoryStorage file = RmsHistoryStorage.open("ogm-history-cache");
+HistoryStore store = null;
+HistoryReader reader = null;
+try {
+    store = HistoryStore.open(file, 100001, 777);
+    long after = store.checkpoint();
+    reader = new HistoryReader(100001, 1);
+    reader.connect("127.0.0.1:<port>");
+    reader.replay(after, store.consumer(after));
+} finally {
+    try { if (reader != null) reader.close(); }
+    finally { if (store != null) store.close(); else file.close(); }
+}
+```
+
+`checkpoint()`, `size()` and detached `item(index)` inspect the recovered state.
+`consumer(after)` allows `0 <= after <= checkpoint`; each new consumer invalidates
+the old replay binding. It checks local Page.accountID, exact after progression,
+fixed H, increasing IDs/cursors and membership. Page.accountID is new **local-only
+metadata** from HistoryReader's trusted account, not a protocol change. Earlier
+replay uses `reader.replay(0, store.consumer(0))` without regressing the checkpoint.
+The reader still validates the complete page/END before calling the consumer.
+
+For a state-changing page, the consumer:
+
+1. Checks all records against the original retained cache and builds a bounded
+   newest-eight merge. Identical retained records are idempotent; conflicting
+   metadata/text/cursors fail before writing.
+2. Writes the entire merged cache snapshot with the **old checkpoint**.
+3. Only after that succeeds, writes another complete snapshot with
+   `max(old_checkpoint, END.next)`.
+4. Publishes the new in-memory state and returns success only after the second
+   storage operation succeeds. Already-identical replay may require no writes.
+
+No multi-record transaction is assumed: each snapshot is one individually atomic
+RMS record update. If the first succeeds and the second fails, reopen can recover
+new cached ITEMs with the old checkpoint. Resume from that checkpoint safely
+upserts duplicates. A checkpoint write may commit and then report an error; the
+current instance is poisoned and the consumer reports failure, even if the stored
+checkpoint is newer. Close/reopen and validate the actual bytes before continuing.
+No individual ITEM, ACK, CHANGED or partial network page advances the checkpoint.
+RMS read/write errors, incompatible records and corruption are explicit failures;
+there is no automatic deletion, repair, migration or reset. Retain old stores for
+diagnosis and use separately authorized explicit provisioning if recovery is impossible.
+Retry a failed close before reopening; an unreleased adapter can require VM restart.
+
+### History snapshot format, version 1
+
+Exactly RMS record ID 1, big-endian:
+
+| Offset | Bytes | Field |
+| --- | --- | --- |
+| 0 | 4 | Magic `4f 47 4d 48` (`OGMH`) |
+| 4 | 1 | Version `01` |
+| 5 | 4 | Trusted account ID |
+| 9 | 8 | Positive local test server-history namespace |
+| 17 | 8 | Completed cursor, 0..2^63−1 |
+| 25 | 1 | Retained ITEM count, 0..8 |
+| 26 | variable | That many complete existing length-prefixed ITEM frames |
+| end−4 | 4 | CRC-32/ISO-HDLC of preceding bytes |
+
+Size is **30..16374 bytes**. The adapter checks record count/ID and size before
+allocating; load checks CRC, version, identity bindings, strict codec syntax,
+membership, ordering and trailing bytes. Cache cursors beyond checkpoint are
+intentional staged-write recovery state. CRC detects accidental corruption,
+not tampering or rollback of an otherwise valid old record.
+
+Eviction is only of local cache entries: older server history remains retrievable.
+A failed checkpoint update may already have changed/evicted cache entries. Older
+replay does not displace the newest retained messages. Conflict detection covers
+retained IDs; an eight-entry cache cannot remember or compare every evicted record.
+The server remains authoritative for those records. A checkpoint represents
+completed retrieval under this cache policy, **not full local history retention,
+a read receipt or a delivery guarantee**. A future cursor rejected by the server,
+or a page snapshot below already-known progress, fails without resetting state.
+
+Memory is bounded by the page, eight cached records, a bounded merge and snapshot
+serialization buffers; it never grows with total history length. Whole-snapshot
+writes trade extra bounded flash traffic for simple recovery. The maximum-size
+record works in MicroEmulator, but heap/flash cost, record limits and durability
+on physical K750i remain unmeasured. RMS success relies on the platform's storage
+contract; no emulator or injected failure test certifies physical power-loss safety.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-java-me-durable-history.ps1
+```
+
+This runs CLDC 1.1/MIDP 2.0 compilation, class version 45.3/preverification,
+focused tests, and **31 separate emulator JVM phases** using file RMS and the
+unchanged Go Handle with loopback TCP/temporary SQLite. At limits 1 and 8, initial
+cursor 3 is reopened after offline additions and only IDs 4..10 are fetched.
+Truncating the third END leaves cursors 12/26; restarted processes fetch only the
+remaining IDs through 30. Earlier replay preserves checkpoint 10 and the newest
+eight entries. Tests inject failure before staged persistence, before checkpoint
+update, and after actual RMS checkpoint success but before its reply; new JVMs
+recover and replay from the real stored cursor. Go checks exact SYNC read bounds.
+Other cases cover empty/single histories, wrong bindings, independent pending SEND
+preservation, maximum-size Unicode/RMS records and an explicit cursor-invalid
+server rollback. No public listener, physical deployment or new dependency is used.
 
 ## Verification and durability limits
 
