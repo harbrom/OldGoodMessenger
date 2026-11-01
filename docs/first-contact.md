@@ -16,11 +16,11 @@ presence, contact management, database, HTTP endpoint, or website. In-memory
 messages can be lost on disconnection, queue overflow, or process exit. These
 PoC limits do not replace the approved multi-session and history requirements.
 
-The relay defaults to **127.0.0.1:19090**. Task 005B-1 authorizes an explicit
-`-listen IP:port` configuration for a future controlled physical-device test;
-wildcard addresses remain rejected. This is preparation only: all validation
-traffic in this task uses loopback, with no LAN/public listener, firewall changes,
-router changes, or deployment. External exposure requires separate authorization.
+The relay defaults to **127.0.0.1:19090**. Task 005B-1 added explicit
+`-listen IP:port` configuration; wildcard addresses remain rejected. Its local
+validation used loopback only. The later owner-authorized, temporary physical
+GPRS test and completed cleanup are recorded below. No test endpoint remains
+running; any further external exposure requires separate authorization.
 Plain TCP provides no confidentiality, peer authentication, or protection from
 active modification. Any local process can claim either disposable identity.
 Use non-sensitive fixtures only.
@@ -29,8 +29,8 @@ Use non-sensitive fixtures only.
 
 The inspected host reports **Windows 10 Enterprise LTSC 2021, 21H2, build
 19044.7725**, x64, with an Intel Core i5-9400F. It is not Windows 11. Windows 11,
-XP, Linux/ARM64 execution, and physical K750i/GPRS messaging remain untested.
-The owner's confirmed K750i installation/UI smoke test is recorded below.
+XP and Linux/ARM64 execution remain untested. The owner's confirmed K750i UI
+smoke test and basic bidirectional GPRS messaging milestone are recorded below.
 
 | Tool | Exact version and use |
 | --- | --- |
@@ -50,8 +50,9 @@ No Go, Java ME SDK, or suitable preverification workflow was initially available
 The inventory was not exhaustive: access to the user-home listing and CIM OS
 query was denied; OS registry/version queries supplied the host evidence above.
 
-Portable tools are stored under `.tools/`. No system-wide installer, administrator
-elevation, permanent PATH modification, or framework installation was used.
+Portable tools are stored under `.tools/`. Toolchain setup used no system-wide
+installer, administrator elevation, permanent PATH modification, or framework
+installation.
 The setup scripts pin SHA-256 hashes and stop on mismatch before extraction or
 execution. Official project release channels are used, not third-party archives:
 
@@ -144,7 +145,7 @@ specific assigned LAN IPv4 address, for example `-listen <LAN-IPv4>:19090`
 Hostnames, empty hosts, wildcard addresses (`0.0.0.0`, `::`, including mapped
 forms), multicast addresses, nondecimal ports, and ports outside 0..65535 are
 rejected. No hostname lookup or implicit all-interface binding occurs. Do not
-start a LAN/public listener as part of the current preparation task.
+start a LAN/public listener without a separately authorized test window.
 
 The console accepts `-server 127.0.0.1:19090`. Reconnection is explicit; after an
 abrupt drop, retry `/connect` if cleanup has not yet released the identity.
@@ -324,7 +325,8 @@ test-only assertion correction; it was not repeated during finalization.
 Emulator exchanges are sequential request/echo pairs; overlapping bidirectional
 sends are covered by Go tests. Java SE headless emulator results do not establish
 physical K750i/GPRS connectivity, full handset rendering or cancellation behavior,
-or Windows XP/Windows 11 compatibility. Those remain unverified. The actual host
+or Windows XP/Windows 11 compatibility. The later hardware milestone below records
+the separate evidence for basic physical GPRS messaging only. The actual host
 was Windows 10 Enterprise LTSC; Go race detection remains blocked by missing
 `gcc` rather than being reported as a pass.
 
@@ -333,9 +335,10 @@ was Windows 10 Enterprise LTSC; Go race detection remains blocked by missing
 The project owner reports that the unsigned MIDlet was installed and successfully
 launched on a physical Sony Ericsson K750i. Text input, navigation, and normal
 application exit were verified. This is owner-provided physical-device evidence,
-not an inference from MicroEmulator. No physical GPRS connection or message
-exchange has been verified. Firmware, network profile, network permission prompts,
-full glyph coverage, and interrupted socket cancellation remain unverified.
+not an inference from MicroEmulator. This installation-only stage did not test
+GPRS; the subsequent physical GPRS milestone is recorded below. Firmware and
+network-profile details, permission-prompt behavior, full glyph coverage, and
+interrupted socket cancellation remain unverified.
 
 ## Task 005B-1: server preparation and local validation
 
@@ -362,7 +365,7 @@ Builds and local results are ignored under `.build/`; listener/console evidence
 is under `.build/gprs-preparation/`. No ten-minute idle, 20,000-message load,
 exhaustive Unicode, emulator, LAN connectivity, or GPRS tests were repeated here.
 
-### Read-only network readiness assessment
+### Read-only network readiness assessment (before the live test)
 
 The active Ethernet adapter has a private RFC 1918 IPv4 address, a private IPv4
 gateway, and the preferred default IPv4 route. This suggests a local router/NAT;
@@ -386,13 +389,53 @@ external port scan, public-IP lookup, router administration, or public-endpoint
 probe was performed. A private LAN listener alone will not make the PC reachable
 from GPRS.
 
-## Requirements for the separately authorized GPRS test
+## Physical GPRS First Contact — November 1, 2026
 
-First confirm a controlled endpoint's public IPv4 reachability and obtain explicit
+The project owner confirmed successful operation of the existing MIDlet on a real
+Sony Ericsson K750i over cellular GPRS. The handset (test ID `100002`) connected
+by direct TCP through the owner's home network to the Go relay on the development
+PC and exchanged messages with the Windows console client (test ID `100001`).
+No third-party messaging platform or legacy gateway was involved.
+
+The owner reported photographic evidence of these exact observations:
+
+| Observation | Displayed text |
+| --- | --- |
+| Handset connection established | `Connected as 100002` |
+| K750i to Windows | `From 100002: hello` |
+| Windows to K750i | `100001: Hello from Windows` |
+
+This confirms basic bidirectional messaging over real GPRS for the tested handset
+and setup. The photographs are described by the owner; no photograph files are
+added to the repository. Earlier emulator and local test results remain separate
+evidence and were not repeated to establish this hardware milestone.
+
+The relay remains an experimental, unauthenticated plaintext PoC using disposable
+identities. This test does not establish sustained connectivity, delivery
+guarantees, production authentication or security, broader device compatibility,
+or performance under real-world conditions. No latency, throughput, uptime, or
+long-term reliability measurements were recorded.
+
+After the test, the owner reported disabling the router's OGM forwarding rule.
+Task 005B-4 used the existing local cleanup script and verified that the relay and
+Windows test console were stopped, the temporary
+`OGM-LiveGPRS-19090-Temporary` firewall rule was removed, TCP port 19090 had no
+listener, and the local status file reported `Stopped`. Router cleanup is based
+on the owner's report; the router was not accessed or modified by the agent.
+Local logs, firewall helpers, generated artifacts, and machine-specific endpoint
+configuration remain ignored and are not committed.
+
+Short finalization checks passed: `go test ./...`, `go vet ./...`,
+`git diff --check`, and internal Markdown file-link validation. No GPRS, emulator,
+idle, stress, or exhaustive Unicode test was repeated during finalization.
+
+## Requirements for any further externally reachable test
+
+First reconfirm a controlled endpoint's public IPv4 reachability and obtain explicit
 authorization for temporary external exposure. If using this PC behind its router,
 verify the router WAN/public IPv4 and upstream NAT/CGNAT situation before planning
-any port forwarding, plus the required firewall permission. No such changes or
-public endpoint were provisioned here. Select a single interface/address and a
+any port forwarding, plus the required firewall permission. The completed test's
+temporary endpoint has been removed. Select a single interface/address and a
 permitted external TCP port, retain the disposable IDs, and define test duration
 and cleanup. The unauthenticated plaintext PoC remains limited to test traffic.
 
@@ -406,7 +449,7 @@ No MIDlet code or protocol change is required to select an endpoint.
 Then record permission prompts, DNS/socket errors, exact Unicode byte preservation
 versus glyph rendering, bidirectional messages, reconnection, and idle behavior.
 Use the [research acceptance criteria](research/technical-foundation.md) as the
-starting proposal. Local listener validation and the physical UI smoke test do
-not prove GPRS delivery. Production architecture, authentication, history, session
-synchronization, Windows GUI, and Unicode counting remain later decisions within
-approved product scope.
+starting proposal. The successful hardware milestone proves only the basic
+connection and message observations above. Production architecture,
+authentication, history, session synchronization, Windows GUI, and Unicode
+counting remain later decisions within approved product scope.
