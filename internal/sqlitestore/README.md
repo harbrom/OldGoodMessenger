@@ -1,8 +1,9 @@
-# Isolated SQLite acceptance adapter
+# Isolated SQLite acceptance and history adapter
 
-Task 009A authorizes this file-backed adapter only. Delivery v1 remains proposed
-for production integration. There is no TCP server, protocol ACK emission,
-authentication, client change, or `historysync.Store.View` implementation here.
+Task 009A authorizes file-backed acceptance; Task 009B adds the isolated
+`historysync.Store.View` read adapter. Delivery v1 remains proposed for production
+integration. There is no TCP server, protocol ACK emission, authentication,
+client change, or persistent device checkpoint implementation here.
 
 Dependency: **modernc.org/sqlite v1.61.1**, pinned in `go.mod`/`go.sum`. Its published
 module requires Go 1.26.0; the existing **Go 1.27.3** remains unchanged. The tested
@@ -68,6 +69,37 @@ reopening, rollback (including deferred FK failure at COMMIT), lost-reply recove
 two-instance concurrency, constraints and PRAGMAs, including connection replacement.
 They **do not simulate physical power failure** or certify storage hardware.
 No database, WAL, SHM, cache, or downloaded dependency is committed.
+
+## History snapshots and bounded reads
+
+`View` uses `BeginTx` with `ReadOnly: true`. In pinned modernc.org/sqlite v1.61.1,
+`newTx` in `tx.go` bypasses `_txlock=immediate` for that option and executes a
+deferred `BEGIN`. The initial account-tail SELECT pins the SQLite WAL snapshot
+before invoking the callback; Tail returns that captured high-water mark. Joined
+feed/message reads use the same transaction and cannot see later commits.
+The Reader interface exposes no writes; this driver option is a transaction-mode
+selection, not an authentication or SQL permission boundary.
+
+`Records` scopes every query to the established account and `(after, through]`,
+orders by account cursor, and uses a parameterized SQL LIMIT of at most 9 (page
+plus one lookahead). The existing `(account_id, cursor)` primary-key index and
+message primary key suffice; EXPLAIN tests verify indexed access without a sort.
+No schema, index, driver, or acceptance transaction changes are required.
+Exact BLOB bytes and all original identity fields are reconstructed. Cursor gaps
+are preserved. A dangling message reference causes a read error, not omission.
+
+Rows and transactions are closed on success/error; callback failure rolls back
+the read transaction. The service returns no partial page on a read/view error.
+No transaction is kept between pages: later pages reuse numeric H, and fresh
+views observe new commits. Reads never update history or device checkpoints.
+
+The existing single-connection pool is reused, so calls through the same store
+instance wait for a view to finish. Do not reenter it from the callback. In WAL
+mode, an independent store instance can commit acceptance while that view remains
+open; a channel-gated test verifies this with actual temporary SQLite files.
+`Close` retains its existing ownership of the only pool; no extra lifecycle is
+introduced. Callbacks should stay short, since pinned readers can delay WAL
+checkpoint progress. Power-loss and production integration limitations remain.
 
 For a fresh checkout, download pinned modules with the existing portable Go
 toolchain before using the project's intentionally offline Go wrapper:
