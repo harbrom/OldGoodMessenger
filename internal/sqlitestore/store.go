@@ -1,5 +1,5 @@
-// Package sqlitestore is the isolated file-backed SQLite acceptance adapter.
-// It does not authenticate callers, emit ACKs, or implement history retrieval.
+// Package sqlitestore provides isolated SQLite acceptance and history adapters.
+// It does not authenticate callers or emit protocol ACKs.
 package sqlitestore
 
 import (
