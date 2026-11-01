@@ -25,11 +25,12 @@ public final class HistoryReader {
 
     /** Only constructed after complete ITEM/END validation; at most limit items. */
     public static final class Page {
+        public final int accountID; // Trusted local reader binding, never a wire field.
         public final long after, next, through;
         private final Item[] items;
         private final int count;
-        private Page(long after, Codec.Frame end, Item[] items, int count) {
-            this.after = after; next = end.next; through = end.through; this.items = items; this.count = count;
+        private Page(int account, long after, Codec.Frame end, Item[] items, int count) {
+            accountID = account; this.after = after; next = end.next; through = end.through; this.items = items; this.count = count;
         }
         public int size() { return count; }
         public Item item(int index) {
@@ -141,7 +142,7 @@ public final class HistoryReader {
             case Codec.END:
                 if (frame.through < lastCursor || frame.next < after || (h != 0 && frame.through != h) ||
                     (frame.next < frame.through && (count != limit || frame.next != lastCursor))) throw invalid();
-                return new Page(after, frame, items, count);
+                return new Page(account, after, frame, items, count);
             case Codec.ERROR:
                 if (frame.requestOp != Codec.SYNC || frame.reference != after) throw invalid();
                 throw new SyncException(frame);
