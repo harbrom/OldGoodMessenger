@@ -1,8 +1,9 @@
 # Delivery v1 writer state and outbox
 
-Task 011A authorizes this isolated CLDC 1.1/MIDP 2.0 component. It does not change
-First Contact, its MIDlet package, the wire codec, or the server. There is no UI,
-networking, authentication, writer issuance, history or synchronization here.
+Task 011A authorizes isolated CLDC 1.1/MIDP 2.0 writer state; Task 011B adds a
+SEND-only TCP component and local emulator integration tests. Neither changes
+First Contact, its MIDlet package, the wire codec, or server behavior. There is
+no UI, production authentication, writer issuance, history or synchronization here.
 Run persistence on a worker thread in any future integration, never the UI thread.
 
 ## Ownership and provisioning
@@ -97,6 +98,82 @@ the pending request or its cleared state. Corruption never chooses a guessed
 counter or silently rolls back. Close invalidates the instance immediately; a
 failed close must be retried before opening another adapter. A leaked handle from
 a failed factory cleanup blocks further adapters until VM restart.
+
+## SEND-only TCP lifecycle (Task 011B)
+
+Give `Sender` an already-open, trusted `WriterState`. On one worker thread, call
+`connect("127.0.0.1:<port>")`, then `send(recipient, text)` or `retry()`, and
+eventually `close()`. The address is an outbound DNS/IPv4 `host:port`, with an
+explicit host and port 1..65535; URLs, parameters, omitted hosts and IPv6 are
+rejected. Test listeners use only `127.0.0.1:0`. This component creates no listener
+and sends no account/writer handshake. A future production boundary must establish
+peer identity and bind replies to the provisioned writer before using these frames.
+
+`send` durably reserves before writing. `retry` obtains the exact persisted SEND
+without reserving. Both write one bounded existing frame, flush, and read one
+complete response. A matching ACK or correlated SEND ERROR alone reaches
+`WriterState.resolve`; the returned `Codec.Frame` preserves ACK versus REJECTED,
+CONFLICT and RETRYABLE. ACK indicates server storage acceptance, not recipient
+delivery. Successful write/flush alone never clears the outbox. New SEND while
+pending is refused; RETRYABLE keeps pending and permits explicit retry.
+
+I/O errors, platform timeout exceptions and malformed/unexpected/mismatched replies
+close the socket and both streams, report an error and preserve unresolved state.
+Explicitly reconnect, then retry; reconnect itself never allocates or transmits.
+After an RMS resolution error the state is unusable: close the sender, join its
+worker, close/reopen/verify RMS and construct a new Sender. Recovery uses what RMS
+actually retained; an uncertain ACK clear may have committed.
+
+One operation may run at a time. There are no background workers, concurrent
+writers, queues, automatic reconnects or timers. The caller must give the sender
+exclusive use of its WriterState during operations. A cancellation thread may
+call `close()` while the worker blocks; then join the worker before reconnecting
+or closing RMS. Handles returned after a cancelled open are closed, and cleanup
+errors are reported and may be retried. Cancellation may race with an already
+received matching ACK/RMS commit; it cannot undo accepted storage operations.
+It can also leave a newly reserved SEND pending before any bytes were transmitted.
+
+The implementation uses [MIDP 2.0 SocketConnection](https://docs.oracle.com/javame/config/cldc/ref-impl/midp2.0/jsr118/javax/microedition/io/SocketConnection.html)
+and `Connector.open(..., READ_WRITE, true)`. The
+[Connector timeout flag](https://docs.oracle.com/javame/config/cldc/ref-impl/midp2.0/jsr118/javax/microedition/io/Connector.html)
+is only a platform hint, **not a guaranteed timeout or millisecond deadline**.
+Closing acquired handles supports cancellation, but an implementation blocked
+inside Connector.open may return only later; no immediate-open-cancellation or
+physical GPRS timeout behavior is established. The Go harness bounds each emulator
+process to 20 seconds; that test guard is not a handset networking policy.
+
+Run the isolated sender checks with the installed tools:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-java-me-sender.ps1
+```
+
+This compiles/preverifies the component and CLDC-only focused tests, then runs
+`TestJavaMESender` in the existing Go loopback package with a separately packaged
+test MIDlet. Ordinary `go test ./...` skips that opt-in emulator test; the script
+supplies its fixture JAR explicitly. No First Contact artifacts are rebuilt.
+
+The test-only Go harness injects account 100001 and writer 7 for the restart
+scenario, matching trusted RMS provisioning. Other outcomes use distinct disposable
+writers 11..16 and databases. Nothing selects identities through TCP. Temporary
+SQLite files and file-backed emulator RMS are owned by the Go test and cleaned
+up after listeners and handlers stop; generated JARs stay ignored under `.build/`.
+
+Verified locally: real TCP through unchanged `deliveryloopback.Handle`, exact
+ASCII/Ukrainian/Polish/combining/supplementary/NUL/newline bytes in SQLite, commit
+before deliberately dropped ACK, separate-JVM RMS reopen/retry returning original
+ID 1, then a new SEND with sequence/ID 2 and durable pending clear on another
+restart. Additional emulator cases verify REJECTED, CONFLICT, RETRYABLE, malformed,
+unexpected and mismatched replies and recovery. Focused stream-seam tests cover
+flush failure, timeout exceptions, uncertain RMS ACK clears, partial reads,
+resource cleanup and cancellation during read/open without sleeps. The restart
+phases also reopen SQLite; each phase verifies committed rows/IDs and joins
+handlers before closing the store.
+
+These are emulator/desktop results, not new K750i hardware evidence. Production
+authentication, encryption, history SYNC/ITEM/END/checkpoints, CHANGED handling,
+GUI, public/GPRS integration, hard deadlines and physical power-loss guarantees
+remain outside this experiment.
 
 ## Verification and durability limits
 
